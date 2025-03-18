@@ -51,6 +51,11 @@ def main():
         "consider it a new line in the transcription.",
         type=float,
     )
+    parser.add_argument(
+        "--output_file",
+        help="File path to save the transcription.",
+        type=str,
+    )
     if "linux" in platform:
         parser.add_argument(
             "--default_microphone",
@@ -159,11 +164,15 @@ def main():
                     transcription[-1] = text
 
                 # Clear the console to reprint the updated transcription.
-                os.system("cls" if os.name == "nt" else "clear")
+                # os.system("cls" if os.name == "nt" else "clear")
                 for line in transcription:
                     print(line)
+                # Write to file if output_file is specified
+                if args.output_file:
+                    with open(args.output_file, "w", encoding="utf-8") as f:
+                        f.write("\n".join(transcription))
                 # Flush stdout.
-                print("", end="", flush=True)
+                # print("", end="", flush=True)
             else:
                 # Infinite loops are bad for processors, must sleep.
                 sleep(0.25)

@@ -1,11 +1,10 @@
-#! python3.7
+#!/usr/bin/env python
 
 import argparse
 import os
 import numpy as np
 import speech_recognition as sr
-import whisper
-import torch
+from lightning_whisper_mlx import LightningWhisperMLX
 
 from datetime import datetime, timedelta
 from queue import Queue
@@ -19,10 +18,19 @@ def main():
         "--model",
         default="medium",
         help="Model to use",
-        choices=["tiny", "base", "small", "medium", "large"],
-    )
-    parser.add_argument(
-        "--non_english", action="store_true", help="Don't use the english model."
+        choices=[
+            "tiny",
+            "small",
+            "distil-small.en",
+            "base",
+            "medium",
+            "distil-medium.en",
+            "large",
+            "large-v2",
+            "distil-large-v2",
+            "large-v3",
+            "distil-large-v3",
+        ],
     )
     parser.add_argument(
         "--energy_threshold",
@@ -32,7 +40,7 @@ def main():
     )
     parser.add_argument(
         "--record_timeout",
-        default=2,
+        default=1,
         help="How real time the recording is in seconds.",
         type=float,
     )
@@ -65,6 +73,7 @@ def main():
 
     # Important for linux users.
     # Prevents permanent application hang and crash by using the wrong Microphone
+    source = None
     if "linux" in platform:
         mic_name = args.default_microphone
         if not mic_name or mic_name == "list":
@@ -82,17 +91,16 @@ def main():
 
     # Load / Download model
     model = args.model
-    if args.model != "large" and not args.non_english:
-        model = model + ".en"
-    audio_model = whisper.load_model(model)
+    audio_model = LightningWhisperMLX(model, batch_size=12, quant=None)
 
     record_timeout = args.record_timeout
     phrase_timeout = args.phrase_timeout
 
     transcription = [""]
 
-    with source:
-        recorder.adjust_for_ambient_noise(source)
+    if source:
+        with source:
+            recorder.adjust_for_ambient_noise(source)
 
     def record_callback(_, audio: sr.AudioData) -> None:
         """
@@ -140,9 +148,7 @@ def main():
                 )
 
                 # Read the transcription.
-                result = audio_model.transcribe(
-                    audio_np, fp16=torch.cuda.is_available()
-                )
+                result = audio_model.transcribe(audio_np)
                 text = result["text"].strip()
 
                 # If we detected a pause between recordings, add a new item to our transcription.
